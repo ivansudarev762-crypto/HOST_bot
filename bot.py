@@ -6,10 +6,17 @@ import os
 from datetime import datetime, timedelta
 import time
 import traceback
-import gspread
 import csv
 import io
-from oauth2client.service_account import ServiceAccountCredentials
+
+# Опциональные импорты для Google Sheets
+try:
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+    GSPREAD_AVAILABLE = True
+except ImportError:
+    GSPREAD_AVAILABLE = False
+    print("⚠️  Модули gspread/oauth2client не установлены - Google Sheets отключен")
 
 print("=" * 50)
 print("Инициализация бота...")
@@ -49,6 +56,7 @@ MSG = {
 }
 
 if not os.path.exists(DATA_FILE):
+    print(f"📝 Создаю файл данных: {DATA_FILE}")
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump({
                 "specialists": ["Иванов Иван Иванович", "Петров Пётр Петрович", "Сидорова Анна Сергеевна"],
@@ -60,6 +68,9 @@ if not os.path.exists(DATA_FILE):
                 "specialists_info": {},
                 "users_settings": {}
         }, f, ensure_ascii=False, indent=2)
+    print(f"✅ Файл {DATA_FILE} создан")
+else:
+    print(f"✅ Файл данных найден: {DATA_FILE}")
 
 def load_data():
     with data_lock:
@@ -72,30 +83,48 @@ def save_data(data):
             json.dump(data, f, ensure_ascii=False, indent=2)
     # Web-панель удалена: не выполняем экспорт admin_data.json
 
-# Google Sheets integration
+# Google Sheets integration (опционально)
 SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID') or '1AYY_vvVCtqJvaQqjHtikAX5u-32_FIyPCs7dYvexFrs'
 CREDENTIALS_FILE = os.environ.get('GOOGLE_CREDENTIALS_JSON') or 'credentials.json'
 
 _gs_client = None
 _sheet = None
+_gs_available = False
 
 def get_worksheet():
-    global _gs_client, _sheet
+    global _gs_client, _sheet, _gs_available
+    
+    # Проверяем доступность модулей
+    if not GSPREAD_AVAILABLE:
+        return None
+    
     if _sheet is not None:
         return _sheet
+    # Если уже проверяли и не доступно - не пытаемся снова
+    if _gs_available is False:
+        return None
     try:
+        # Проверяем наличие файла credentials
+        if not os.path.exists(CREDENTIALS_FILE):
+            print(f"⚠️  Google Sheets отключен: файл {CREDENTIALS_FILE} не найден")
+            _gs_available = False
+            return None
+        
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
         _gs_client = gspread.authorize(creds)
         sh = _gs_client.open_by_key(SPREADSHEET_ID)
         _sheet = sh.sheet1
+        _gs_available = True
         try:
             ensure_headers(_sheet)
         except Exception:
             pass
+        print("✅ Google Sheets подключен успешно")
         return _sheet
     except Exception as e:
-        print("Failed to init Google Sheets:", e)
+        print(f"⚠️  Google Sheets недоступен: {e}")
+        _gs_available = False
         return None
 
 def ensure_headers(sheet):
@@ -2278,7 +2307,14 @@ def cmd_show_cmds(message):
         bot.send_message(message.chat.id, "Не удалось получить команды: " + str(e))
 
 
-print("=" * 50)
-print("🚀 Бот запущен и готов к работе!")
-print("=" * 50)
-bot.infinity_polling()
+if __name__ == "__main__":
+    try:
+        print("=" * 50)
+        print("🚀 Бот запущен и готов к работе!")
+        print("=" * 50)
+        bot.infinity_polling()
+    except KeyboardInterrupt:
+        print("\n⛔ Бот остановлен пользователем")
+    except Exception as e:
+        print(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА:\n{traceback.format_exc()}")
+        raise
