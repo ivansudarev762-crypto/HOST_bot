@@ -8,20 +8,8 @@ import time
 import traceback
 import gspread
 import csv
-import tempfile
 import io
 from oauth2client.service_account import ServiceAccountCredentials
-try:
-    from openpyxl import Workbook
-    from openpyxl.styles import Font
-    HAVE_OPENPYXL = True
-except Exception:
-    HAVE_OPENPYXL = False
-try:
-    from googleapiclient.discovery import build as _build_drive
-    HAVE_DRIVE_API = True
-except Exception:
-    HAVE_DRIVE_API = False
 
 TOKEN = os.environ.get("BOT_TOKEN") or os.environ.get("TOKEN", "8579096962:AAHLE-OEdiNbmc7TydZ5uN5fM7kEJ1tecC4")
 ADMINS = [8133757512, 522637522]
@@ -77,11 +65,9 @@ def save_data(data):
     # Web-панель удалена: не выполняем экспорт admin_data.json
 
 # Google Sheets integration
-# Configure these: credentials file (service account JSON) and the spreadsheet id
 SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID') or '1AYY_vvVCtqJvaQqjHtikAX5u-32_FIyPCs7dYvexFrs'
 CREDENTIALS_FILE = os.environ.get('GOOGLE_CREDENTIALS_JSON') or 'credentials.json'
 
-# Lazy-initialized gspread worksheet
 _gs_client = None
 _sheet = None
 
@@ -94,7 +80,6 @@ def get_worksheet():
         creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
         _gs_client = gspread.authorize(creds)
         sh = _gs_client.open_by_key(SPREADSHEET_ID)
-        # use first sheet
         _sheet = sh.sheet1
         try:
             ensure_headers(_sheet)
@@ -168,7 +153,6 @@ def add_action_log(actor, text, details=None, data=None):
     actions.append(entry)
     save_data(data)
     try:
-        # Отправляем в Google Sheet как сообщение-лог
         write_message_to_sheet({"tag": "action", "from_id": actor or "system", "from_username": "action_log", "text": text})
     except Exception:
         pass
@@ -2150,7 +2134,6 @@ def cmd_get_users(message):
 
     data = load_data()
     uids = set()
-    use_openpyxl = HAVE_OPENPYXL
     # из записей
     for k in data.get('records', {}).keys():
         try:
