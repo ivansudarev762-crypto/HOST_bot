@@ -11,9 +11,17 @@ import csv
 import io
 from oauth2client.service_account import ServiceAccountCredentials
 
+print("=" * 50)
+print("Инициализация бота...")
+print("=" * 50)
+
 TOKEN = os.environ.get("BOT_TOKEN") or os.environ.get("TOKEN", "8579096962:AAHLE-OEdiNbmc7TydZ5uN5fM7kEJ1tecC4")
 ADMINS = [8133757512, 522637522]
 DATA_FILE = "data.json"
+
+print(f"TOKEN: {TOKEN[:20]}...")
+print(f"ADMINS: {ADMINS}")
+print(f"DATA_FILE: {DATA_FILE}")
 
 bot = telebot.TeleBot(TOKEN)
 data_lock = threading.Lock()
@@ -918,6 +926,7 @@ def all_text_handler(message):
 @bot.callback_query_handler(func=lambda cb: True)
 def inline_callbacks(cb):
     try:
+        print(f"[CALLBACK] User {cb.from_user.id} pressed: {cb.data}")
         data = load_data()
         chat_id = cb.message.chat.id
         user_id = cb.from_user.id
@@ -1744,8 +1753,12 @@ def inline_callbacks(cb):
                 safe_edit_message(chat_id, cb.message.message_id, "Отмена.")
             return
 
-    except Exception:
-        print("Error in inline_callbacks:", traceback.format_exc())
+    except Exception as e:
+        print(f"[ERROR] in inline_callbacks: {traceback.format_exc()}")
+        try:
+            bot.answer_callback_query(cb.id, "❌ Произошла ошибка")
+        except Exception:
+            pass
 
 def send_my_records(chat_id, user_id):
     data = load_data()
@@ -2265,5 +2278,7 @@ def cmd_show_cmds(message):
         bot.send_message(message.chat.id, "Не удалось получить команды: " + str(e))
 
 
-print("Бот запущен...")
+print("=" * 50)
+print("🚀 Бот запущен и готов к работе!")
+print("=" * 50)
 bot.infinity_polling()
